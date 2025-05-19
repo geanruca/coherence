@@ -1,0 +1,36 @@
+# Composer
+/vendor
+composer.lock
+
+# Laravel
+/.env
+/.env.testing
+/storage
+/bootstrap/cache
+
+# PHPUnit
+.phpunit.result.cache
+coverage/
+tests/tmp/
+*.log
+
+# IDEs
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# System
+.DS_Store
+Thumbs.db
+
+# Node (if used for frontend assets)
+node_modules/
+public/hot
+public/storage
+resources/js/*.js
+resources/css/*.css
+mix-manifest.json
+
+# Git
+.gitignore

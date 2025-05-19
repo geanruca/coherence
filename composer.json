@@ -1,0 +1,28 @@
+{
+  "name": "geanruca/laravel-coherence",
+  "description": "A Laravel package for AI-based data coherence validation in you Eloquent Models",
+  "type": "library",
+  "require": {
+    "php": "^8.3",
+    "prism-php/prism": "^0.67.0"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^12.0",
+    "orchestra/testbench": "^10.3"
+  },
+  "license": "MIT",
+  "autoload": {
+    "psr-4": {
+      "Geanruca\\LaravelCoherence\\": "src/",
+        "Geanruca\\LaravelCoherence\\Tests\\": "tests/"
+    }
+  },
+  "authors": [
+    {
+      "name": "Gerardo Ruiz",
+      "email": "geanruca@gmail.com"
+    }
+  ],
+  "minimum-stability": "dev",
+  "prefer-stable": true
+}
