@@ -25,8 +25,8 @@ class AnimalTest extends TestCase
 
         $this->app['db']->connection()->getSchemaBuilder()->create('coherence_checks', function ($table) {
             $table->id();
-            $table->string('model_type');  // <- morph type
-            $table->unsignedBigInteger('model_id'); // <- morph id
+            $table->string('model_type');
+            $table->unsignedBigInteger('model_id')->nullable();
             $table->boolean('passed')->default(false);
             $table->text('reason')->nullable();
             $table->text('description')->nullable();
@@ -43,14 +43,19 @@ class AnimalTest extends TestCase
         });
     }
 
-    public function test_incoherent_model_is_stored_and_generates_a_log_when_strict_mode_is_false(): void
+    public function test_incoherent_model_is_stored_and_generates_a_log_without_strict_mode(): void
     {
         Config::set('coherence.strict_mode', false);
 
-        // Fake: 1. descripción inferida, 2. validación de coherencia
         Prism::fake([
-            TextResponseFake::make()->withText('A model representing an animal with a name and its mass.'),
-            TextResponseFake::make()->withText("| no | An elephant cannot weigh 1kg |\n")
+            // saving → infer description
+            TextResponseFake::make()->withText('A model representing an animal.'),
+            // saving → validate
+            TextResponseFake::make()->withText("| no | An elephant cannot weigh 1kg |\n"),
+            // saved → infer again
+            TextResponseFake::make()->withText('A model representing an animal.'),
+            // saved → validate again
+            TextResponseFake::make()->withText("| no | An elephant cannot weigh 1kg |\n"),
         ]);
 
         $animal = new Animal([
@@ -58,22 +63,20 @@ class AnimalTest extends TestCase
             'mass_in_kilograms' => 1
         ]);
 
-        $this->assertTrue($animal->save()); // Modelo se guarda de todos modos
+        $this->assertTrue($animal->save());
 
-        // Se genera un log de coherencia
         $animal = $animal->fresh();
         $checks = $animal->coherenceChecks;
         $this->assertCount(1, $checks);
 
         $log = $checks->first();
-        $this->assertEquals($log->reason, 'An elephant cannot weigh 1kg');
+        $this->assertEquals('An elephant cannot weigh 1kg', $log->reason);
     }
 
-    public function test_incoherent_model_throws_exception_when_strict_mode_is_true(): void
+    public function test_incoherent_model_throws_exception_in_strict_mode(): void
     {
         Config::set('coherence.strict_mode', true);
 
-        // Fake: 1. descripción inferida, 2. validación de coherencia
         Prism::fake([
             TextResponseFake::make()->withText('A model representing an animal with a name and its mass.'),
             TextResponseFake::make()->withText("| no | An elephant cannot weigh 1kg |\n")
@@ -85,19 +88,23 @@ class AnimalTest extends TestCase
         ]);
 
         $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('Model failed coherence validation: An elephant cannot weigh 1kg');
+        $this->expectExceptionMessage('📌 Reason: An elephant cannot weigh 1kg
+🧠 Description: A model representing an animal with a name and its mass.
+📦 Attributes: {
+    "name": "Elephant",
+    "mass_in_kilograms": 1
+}');
 
         $animal->save();
     }
 
     public function test_coherent_model_passes_silently(): void
     {
-        Config::set('coherence.strict_mode', true);
+        Config::set('coherence.strict_mode', false);
 
-        // Fake: 1. descripción inferida, 2. validación de coherencia
         Prism::fake([
             TextResponseFake::make()->withText('A model representing an animal with a name and its mass.'),
-            TextResponseFake::make()->withText("| yes | The model is coherent |\n")
+            TextResponseFake::make()->withText("| yes | The model is coherent |\n"),
         ]);
 
         $animal = new Animal([
@@ -105,7 +112,30 @@ class AnimalTest extends TestCase
             'mass_in_kilograms' => 5000
         ]);
 
-        $this->assertTrue($animal->save()); // Modelo se guarda de todos modos
+        $this->assertTrue($animal->save());
+
+        $animal = $animal->fresh();
+        $checks = $animal->coherenceChecks;
+        $this->assertCount(0, $checks);
+    }
+
+    public function test_coherent_model_passes_silently_in_strict_mode(): void
+    {
+        Config::set('coherence.strict_mode', true);
+
+        Prism::fake([
+            TextResponseFake::make()->withText('A model representing an animal with a name and its mass.'),
+            TextResponseFake::make()->withText("| yes | The model is coherent |\n"),
+            TextResponseFake::make()->withText('A model representing an animal with a name and its mass.'),
+            TextResponseFake::make()->withText("| yes | The model is coherent |\n"),
+        ]);
+
+        $animal = new Animal([
+            'name' => 'Elephant',
+            'mass_in_kilograms' => 5000
+        ]);
+
+        $this->assertTrue($animal->save());
 
         // Se genera un log de coherencia
         $animal = $animal->fresh();

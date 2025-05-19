@@ -14,16 +14,40 @@ trait HasCoherence
             [$isCoherent, $reason] = $model->checkCoherence();
 
             if (! $isCoherent) {
-                if (config('coherence.strict_mode')) {
-                    throw new \Exception("Model failed coherence validation: {$reason}");
-                } else {
-                    $model->coherenceChecks()->create([
-                        'reason' => $reason,
-                        'passed' => false,
-                    ]);
-                }
+                $model->coherenceChecks()->create([
+                    'reason' => $reason,
+                    'passed' => false,
+                ]);
             }
         });
+
+        if (config('coherence.strict_mode')) {
+            static::saving(function ($model) {
+                [$isCoherent, $reason, $description] = $model->checkCoherence();
+
+                if (! $isCoherent) {
+                    // Siempre registrar el intento fallido
+                    $model->coherenceChecks()->create([
+                        'reason' => $reason,
+                        'description' => $description,
+                        'passed' => false,
+                    ]);
+
+                    // En modo estricto, lanzar excepción ANTES de guardar
+                    $summary = json_encode($model->getAttributes(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+                    $class = get_class($model);
+
+                    throw new \Exception(
+                        "🚫 Coherence check failed for model [{$class}]\n" .
+                        "📌 Reason: {$reason}\n" .
+                        "🧠 Description: {$description}\n" .
+                        "📦 Attributes: {$summary}"
+                    );
+                }
+            });
+        }
+
+
     }
 
     public function checkCoherence(): array
@@ -69,10 +93,10 @@ trait HasCoherence
         return [$isCoherent, $reason];
     }
 
-public function coherenceChecks()
-{
-    return $this->morphMany(\Geanruca\LaravelCoherence\Models\CoherenceCheck::class, 'model');
-}
+    public function coherenceChecks()
+    {
+        return $this->morphMany(\Geanruca\LaravelCoherence\Models\CoherenceCheck::class, 'model');
+    }
 
     protected function inferDescriptionFromAttributeNames(string $className, array $attributeNames): string
     {
